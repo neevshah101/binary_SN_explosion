@@ -8,6 +8,7 @@ import astropy.constants as const
 from matplotlib.animation import FuncAnimation
 import argparse
 
+# Use a scientific plotting style
 plt.style.use(['science'])
 
 def v_orb(primary_mass, secondary_mass, semi_major_axis):
@@ -15,12 +16,12 @@ def v_orb(primary_mass, secondary_mass, semi_major_axis):
     Computes the orbital velocity.
 
     Parameters:
-        primary_mass (float): Mass of the primary star (kg).
-        secondary_mass (float): Mass of the secondary star (kg).
-        semi_major_axis (float): Orbital semi-major axis (m).
+        primary_mass (astropy mass): Mass of the primary star .
+        secondary_mass (astropy mass): Mass of the secondary star.
+        semi_major_axis (astropy distance): Orbital semi-major axis.
 
     Returns:
-        float: Orbital velocity (m/s).
+        astropy speed: Orbital velocity (km/s).
     """
     return (np.sqrt(G * (primary_mass + secondary_mass) / semi_major_axis)).to('km/s')
 
@@ -29,28 +30,28 @@ def P_orb(primary_mass, secondary_mass, semi_major_axis):
     Computes the orbital period.
 
     Parameters:
-        primary_mass (float): Mass of the primary star (kg).
-        secondary_mass (float): Mass of the secondary star (kg).
-        semi_major_axis (float): Orbital semi-major axis (m).
+        primary_mass (astropy mass): Mass of the primary star .
+        secondary_mass (astropy mass): Mass of the secondary star.
+        semi_major_axis (astropy distance): Orbital semi-major axis.
 
     Returns:
-        float: Orbital period (days).
+        astropy time: Orbital period (days).
     """
     return (2 * pi * np.sqrt(semi_major_axis**3 / (G * (primary_mass + secondary_mass)))).to('day')
 
 def pre_SN_a(M1, M2, P):
     """
-    Computes the orbital period.
+    Computes the orbital semi-major axis before the supernova explosion.
 
     Parameters:
-        primary_mass (float): Mass of the primary star (kg).
-        secondary_mass (float): Mass of the secondary star (kg).
-        semi_major_axis (float): Orbital semi-major axis (m).
+        M1 (astropy mass): Mass of the primary star .
+        M2 (astropy mass): Mass of the secondary star.
+        P (astropy time): Orbital period.
 
     Returns:
-        float: Orbital period (days).
+        astropy distance: Orbital semi-major axis (R_sun).
     """
-    return (((P / (2*pi))**2 * G * (M1 + M2))**(1/3)).to('Rsun')
+    return (((P / (2 * pi))**2 * G * (M1 + M2))**(1/3)).to('Rsun')
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Simulate a supernova event in a binary system.")
@@ -65,6 +66,7 @@ parser.add_argument("--N", type=int, default=2500, help="Number of points in sim
 parser.add_argument("--output", type=str, default="SN_explosion_3D_no_kick", help="Output file name for the animation.")
 args = parser.parse_args()
 
+# Constants
 pi = np.pi
 msun = u.M_sun
 rsun = u.R_sun
@@ -84,33 +86,53 @@ N = args.N
 kick = (np.array(args.kick) * kms).si.value
 output_file = args.output
 
-#Initial condtions
+# Initial conditions
+# Compute the pre-supernova semi-major axis
 a = pre_SN_a(m1, m2, P)
+# Compute the orbital velocity
 vorb = v_orb(m1, m2, a)
 
-X1_init = ((m2 / (m1+m2)) * a).si.value
+# Initial positions and velocities of the binary components
+X1_init = ((m2 / (m1 + m2)) * a).si.value
 Y1_init = (0 * rsun).si.value
 Z1_init = (0 * rsun).si.value
 
-X2_init = (-(m1 / (m1+m2)) * a).si.value
+X2_init = (-(m1 / (m1 + m2)) * a).si.value
 Y2_init = (0 * rsun).si.value
 Z2_init = (0 * rsun).si.value
 
 VX1_init = (0 * kms).si.value
-VY1_init = ((m2 / (m1+m2)) * vorb).si.value
+VY1_init = ((m2 / (m1 + m2)) * vorb).si.value
 VZ1_init = (0 * kms).si.value
 
 VX2_init = (0 * kms).si.value
-VY2_init = (-(m1 / (m1+m2)) * vorb).si.value
+VY2_init = (-(m1 / (m1 + m2)) * vorb).si.value
 VZ2_init = (0 * kms).si.value
 
-Y_init = np.array([X1_init, Y1_init, Z1_init, X2_init, Y2_init, Z2_init,VX1_init, VY1_init, VZ1_init, VX2_init, VY2_init, VZ2_init])
+# Combine initial conditions into a single array
+Y_init = np.array([X1_init, Y1_init, Z1_init, X2_init, Y2_init, Z2_init, VX1_init, VY1_init, VZ1_init, VX2_init, VY2_init, VZ2_init])
 
 def func(Y, t, G, m1, m2):
+    """
+    Defines the differential equations for the binary system.
 
+    Parameters:
+        Y (array): State vector containing positions and velocities of the binary components.
+        t (float): Time variable.
+        G (float): Gravitational constant.
+        m1 (float): Mass of the primary star (kg).
+        m2 (float): Mass of the secondary star (kg).
+
+    Returns:
+        array: Derivatives of the state vector.
+    """
+    # Unpack the state vector
     X1, Y1, Z1, X2, Y2, Z2, VX1, VY1, VZ1, VX2, VY2, VZ2 = Y
+    
+    # Compute the distance between the two stars
     r = np.sqrt((X2 - X1)**2 + (Y2 - Y1)**2 + (Z2 - Z1)**2)
 
+    # Compute derivatives of positions
     dX1dt = VX1
     dY1dt = VY1
     dZ1dt = VZ1
@@ -118,6 +140,7 @@ def func(Y, t, G, m1, m2):
     dY2dt = VY2
     dZ2dt = VZ2
 
+    # Compute derivatives of velocities using gravitational acceleration
     dVX1dt = G * m2 * (X2 - X1) / (r**3)
     dVY1dt = G * m2 * (Y2 - Y1) / (r**3)
     dVZ1dt = G * m2 * (Z2 - Z1) / (r**3)
@@ -125,37 +148,47 @@ def func(Y, t, G, m1, m2):
     dVY2dt = G * m1 * (Y1 - Y2) / (r**3)
     dVZ2dt = G * m1 * (Z1 - Z2) / (r**3)
 
+    # Combine derivatives into a single array
     dYdt = [dX1dt, dY1dt, dZ1dt, dX2dt, dY2dt, dZ2dt,
             dVX1dt, dVY1dt, dVZ1dt, dVX2dt, dVY2dt, dVZ2dt]
     
     return dYdt
 
-t = np.linspace(0 * day, P_end*P, N).si.value
+# Time array for the simulation
+t = np.linspace(0 * day, P_end * P, N).si.value
 
-#time of explosion
-t_explode = P_explode*P.si.value
+# Time of the supernova explosion
+t_explode = P_explode * P.si.value
 
-#orbit before explosion
+# Simulate the orbit before the explosion
 t_pre_SN = t[t <= t_explode]
 t_end = t_pre_SN[-1]
-sol_pre_SN = sp.integrate.odeint(func, Y_init, t_pre_SN, args = (G.si.value, m1.si.value, m2.si.value))
+sol_pre_SN = sp.integrate.odeint(func, Y_init, t_pre_SN, args=(G.si.value, m1.si.value, m2.si.value))
 
-#orbit after explosion
+# Simulate the orbit after the explosion
+# Add the kick velocity to the primary star
+sol_pre_SN[-1, 6:9] += kick
+Y_init_post_SN = sol_pre_SN[-1]
 t_post_SN = t[t > t_explode]
 t_post_SN = np.insert(t_post_SN, 0, t_end)
-sol_pre_SN[-1,6:9] += kick
-Y_init_post_SN = sol_pre_SN[-1]
-sol_post_SN = sp.integrate.odeint(func, Y_init_post_SN, t_post_SN, args = (G.si.value, m1_post_SN.si.value, m2.si.value))
+sol_post_SN = sp.integrate.odeint(func, Y_init_post_SN, t_post_SN, args=(G.si.value, m1_post_SN.si.value, m2.si.value))
 
+#stack the pre and post SN solutions
 sol = np.vstack((sol_pre_SN[:-1],sol_post_SN))
 m1_array = np.ones(N) * m1
 m1_array[len(sol_pre_SN):] = m1_post_SN
+
+#primary star
 X1 = (sol[:,0] * meter).to('Rsun')
 Y1 = (sol[:,1] * meter).to('Rsun')
 Z1 = (sol[:,2] * meter).to('Rsun')
+
+#secondary star
 X2 = (sol[:,3] * meter).to('Rsun')
 Y2 = (sol[:,4] * meter).to('Rsun')
 Z2 = (sol[:,5] * meter).to('Rsun')
+
+#track the center of mass motion
 X_com = (m1_array * X1 + m2 * X2) / (m1_array + m2)
 Y_com = (m1_array * Y1 + m2 * Y2) / (m1_array + m2)
 Z_com = (m1_array * Z1 + m2 * Z2) / (m1_array + m2)
@@ -173,7 +206,7 @@ print("Post-SN eccentricity:", (V_com[-1] * u.m/u.s).to('km/s') / (vorb * m2 / (
 transition_frame = len(t_pre_SN)  # Replace with your value
 scale = 0.5
 
-# Set up the figure and 3D axes
+# Set up the figure and 3D axes for animation in the inertial frame
 fig = plt.figure(figsize=(7, 7))
 ax = fig.add_subplot(111, projection='3d')
 
@@ -218,7 +251,7 @@ def update(frame):
 
     # Change marker style and color for Star 1 after the transition frame
     if frame < transition_frame:
-        ln1_marker.set_marker('*')  # Yellow star
+        ln1_marker.set_marker('*')
         ln1_marker.set_color('xkcd:blue')
     else:
         if m1 != m1_post_SN:
@@ -240,7 +273,7 @@ def update(frame):
 
     return [ln1_line, ln2_line, ln3_line, ln1_marker, ln2_marker, ln3_marker]
 
-# Create the animation
+# Create the animation for orbit in CoM frame
 ani = FuncAnimation(fig, update, frames=np.arange(1, N, 10),  # Start from 1
                     init_func=init, blit=False, interval=5)
 
@@ -284,7 +317,7 @@ def update(frame):
 
     # Change marker style and color for Star 1 after the transition frame
     if frame < transition_frame:
-        ln1_marker.set_marker('*')  # Yellow star
+        ln1_marker.set_marker('*')
         ln1_marker.set_color('xkcd:blue')
     else:
         if m1 != m1_post_SN:
